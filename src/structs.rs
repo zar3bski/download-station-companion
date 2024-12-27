@@ -1,19 +1,26 @@
-use std::iter::Enumerate;
+use core::fmt;
+use std::{collections::HashMap, iter::Enumerate};
 
 #[derive(Debug)]
-enum TaskStatus {
+pub enum TaskStatus {
     RECEIVED,
     SUBMITTED,
-    PENDING,
+    DOWNLOADING,
     FAILED,
     DONE,
 }
 
+impl fmt::Display for TaskStatus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 #[derive(Debug)]
 pub struct Task {
-    status: TaskStatus,
-    message_id: String,
-    magnet_link: String,
+    pub status: TaskStatus,
+    pub message_id: String,
+    pub magnet_link: String,
 }
 
 impl Task {
@@ -29,6 +36,7 @@ impl Task {
 pub trait MessagingService {
     fn new() -> Self;
     fn fetch_tasks(&self) -> Option<Vec<Task>>;
+    fn update_task_status(&self, task: Task);
 }
 
 trait DownloadingService {

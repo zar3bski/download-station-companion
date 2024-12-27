@@ -22,7 +22,9 @@ fn main() {
         Some(tasks) => {
             info!("Found {} new download tasks. Proceeding", tasks.len());
             ///logic here
-
+            for task in tasks {
+                discord.update_task_status(task);
+            }
             ///
             info!("DS-Companion exiting gracefully");
             process::exit(0)

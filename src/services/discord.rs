@@ -1,5 +1,7 @@
+use std::collections::HashMap;
+
 use crate::conf::CONF;
-use crate::structs::{MessagingService, Task};
+use crate::structs::{MessagingService, Task, TaskStatus};
 use chrono::{DateTime, TimeDelta, Utc};
 use dotenv::dotenv;
 use log::{debug, error};
@@ -21,7 +23,9 @@ fn _resp_to_task(obj: &serde_json::Value) -> Option<Task> {
     if o["content"].as_str().unwrap().starts_with("magnet") {
         if DateTime::parse_from_str(o["timestamp"].as_str().unwrap(), "%+").unwrap() > after {
             // TODO test delta filter
-            return Some(Task::new(o["content"].to_string(), o["id"].to_string()));
+            let content = String::from(o["content"].as_str().unwrap());
+            let id = String::from(o["id"].as_str().unwrap());
+            return Some(Task::new(content, id));
         } else {
             return None;
         }
@@ -40,6 +44,33 @@ impl MessagingService for DiscordService {
         );
         headers.append(USER_AGENT, "Download-Station-Companion".parse().unwrap());
         Self { client, headers }
+    }
+
+    fn update_task_status(&self, task: Task) {
+        let body = json!({"content":task.status.to_string(), "message_reference":{"message_id":task.message_id}});
+        let resp = self
+            .client
+            .post(format!(
+                "{BASE_URL}/channels/{}/messages",
+                CONF.discord_channel
+            ))
+            .headers(self.headers.clone())
+            .json(&body)
+            .send();
+
+        match resp {
+            Ok(res) => {
+                debug!(
+                    "Response received from channel {} status code: {}: {}",
+                    CONF.discord_channel,
+                    res.status(),
+                    res.text().unwrap()
+                );
+            }
+            Err(err) => {
+                error!("Could not notify message_id: {}: {err}", task.message_id);
+            }
+        }
     }
 
     fn fetch_tasks(&self) -> Option<Vec<Task>> {
@@ -92,6 +123,10 @@ fn only_uses_magnet_links() {
     let s = json!({"content": "magnet:....", "id": "1","timestamp": "2044-12-25T19:07:12.600000+00:00"});
     let task = _resp_to_task(&s);
     assert!(task.is_some());
+    let t = task.unwrap();
+    assert!(t.message_id == "1");
+    assert!(t.magnet_link == "magnet:....");
+    assert!(t.status == TaskStatus::RECEIVED);
 
     let t = json!({"content": "toto", "id": "1","timestamp": "2044-12-25T19:07:12.600000+00:00"});
     let task = _resp_to_task(&t);
