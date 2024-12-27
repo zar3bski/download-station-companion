@@ -1,9 +1,11 @@
 use crate::conf::CONF;
 use crate::structs::{MessagingService, Task};
+use chrono::{DateTime, TimeDelta, Utc};
+use dotenv::dotenv;
 use log::{debug, error};
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, AUTHORIZATION, USER_AGENT};
-use serde_json::{self};
+use serde_json::{self, json};
 
 const BASE_URL: &str = "https://discord.com/api/v10";
 
@@ -14,10 +16,15 @@ pub struct DiscordService {
 }
 
 fn _resp_to_task(obj: &serde_json::Value) -> Option<Task> {
-    let _ = "ç";
     let o = obj.as_object().unwrap();
+    let after: chrono::DateTime<Utc> = Utc::now() - TimeDelta::minutes(CONF.minutes_delta as i64);
     if o["content"].as_str().unwrap().starts_with("magnet") {
-        return Some(Task::new(o["content"].to_string(), o["id"].to_string()));
+        if DateTime::parse_from_str(o["timestamp"].as_str().unwrap(), "%+").unwrap() > after {
+            // TODO test delta filter
+            return Some(Task::new(o["content"].to_string(), o["id"].to_string()));
+        } else {
+            return None;
+        }
     } else {
         return None;
     }
@@ -81,12 +88,12 @@ impl MessagingService for DiscordService {
 
 #[test]
 fn only_uses_magnet_links() {
-    //let s = serde_json::to_value(r#"{"content": "magnet:....", "id": "1"}"#);
-    let s = json!({"content": "magnet:....", "id": "1"});
+    dotenv().ok();
+    let s = json!({"content": "magnet:....", "id": "1","timestamp": "2044-12-25T19:07:12.600000+00:00"});
     let task = _resp_to_task(&s);
     assert!(task.is_some());
 
-    let t = json!({"content": "toto", "id": "1"});
+    let t = json!({"content": "toto", "id": "1","timestamp": "2044-12-25T19:07:12.600000+00:00"});
     let task = _resp_to_task(&t);
     assert!(task.is_none());
 }
