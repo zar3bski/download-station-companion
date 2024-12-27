@@ -1,5 +1,6 @@
 use std::iter::Enumerate;
 
+#[derive(Debug)]
 enum TaskStatus {
     RECEIVED,
     SUBMITTED,
@@ -8,6 +9,7 @@ enum TaskStatus {
     DONE,
 }
 
+#[derive(Debug)]
 pub struct Task {
     status: TaskStatus,
     message_id: String,
@@ -26,7 +28,7 @@ impl Task {
 
 pub trait MessagingService {
     fn new() -> Self;
-    fn fetch_tasks(&self) -> Vec<Task>;
+    fn fetch_tasks(&self) -> Option<Vec<Task>>;
 }
 
 trait DownloadingService {

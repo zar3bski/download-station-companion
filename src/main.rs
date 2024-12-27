@@ -2,18 +2,34 @@ mod conf;
 mod logger;
 mod services;
 mod structs;
+use std::process;
+
 use dotenv::dotenv;
-use log::LevelFilter;
+use log::{error, info, LevelFilter};
 use logger::SimpleLogger;
-use services::discord::{self, DiscordService};
+use services::discord::DiscordService;
 use structs::MessagingService;
 
 static LOGGER: SimpleLogger = SimpleLogger;
 
 fn main() {
     dotenv().ok();
-    let _ = log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Info));
-    println!("Hello, world!");
+    let _ = log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Debug));
+    info!("DS-Companion starting");
     let discord = DiscordService::new();
-    discord.fetch_tasks();
+    let tasks = discord.fetch_tasks();
+    match tasks {
+        Some(tasks) => {
+            info!("Found {} new download tasks. Proceeding", tasks.len());
+            ///logic here
+
+            ///
+            info!("DS-Companion exiting gracefully");
+            process::exit(0)
+        }
+        None => {
+            error!("DS-Companion exiting with errors");
+            process::exit(1)
+        }
+    }
 }

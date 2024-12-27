@@ -1,9 +1,9 @@
 use crate::conf::CONF;
 use crate::structs::{MessagingService, Task};
-use log::{debug, error, info, warn};
+use log::{debug, error};
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, AUTHORIZATION, USER_AGENT};
-use serde_json;
+use serde_json::{self};
 
 const BASE_URL: &str = "https://discord.com/api/v10";
 
@@ -13,7 +13,15 @@ pub struct DiscordService {
     headers: HeaderMap,
 }
 
-//fn _resp_to_task() -> Task {}
+fn _resp_to_task(obj: &serde_json::Value) -> Option<Task> {
+    let _ = "ç";
+    let o = obj.as_object().unwrap();
+    if o["content"].as_str().unwrap().starts_with("magnet") {
+        return Some(Task::new(o["content"].to_string(), o["id"].to_string()));
+    } else {
+        return None;
+    }
+}
 
 impl MessagingService for DiscordService {
     fn new() -> Self {
@@ -27,8 +35,7 @@ impl MessagingService for DiscordService {
         Self { client, headers }
     }
 
-    fn fetch_tasks(&self) -> Vec<Task> {
-        let tasks: Vec<Task> = vec![];
+    fn fetch_tasks(&self) -> Option<Vec<Task>> {
         let resp: Result<reqwest::blocking::Response, reqwest::Error> = self
             .client
             .get(format!(
@@ -45,16 +52,41 @@ impl MessagingService for DiscordService {
                     CONF.discord_channel,
                     res.status()
                 );
-                let messages = res.json::<serde_json::Value>().unwrap(); // TODO: parse and create tasks
+                //FIXME : lourdingue
+                let tasks: Vec<Task> = res
+                    .json::<serde_json::Value>()
+                    .unwrap()
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|x| _resp_to_task(x))
+                    .filter(|x| x.is_some())
+                    .map(|x| x.unwrap())
+                    .collect();
+
+                return Some(tasks);
             }
             Err(err) => {
                 error!(
                     "Could not retrieve tasks from discord channel_id {}: {err}",
                     CONF.discord_channel
                 );
+                return None;
             }
         }
-
-        return tasks;
     }
+}
+
+/////Unit Tests/////
+
+#[test]
+fn only_uses_magnet_links() {
+    //let s = serde_json::to_value(r#"{"content": "magnet:....", "id": "1"}"#);
+    let s = json!({"content": "magnet:....", "id": "1"});
+    let task = _resp_to_task(&s);
+    assert!(task.is_some());
+
+    let t = json!({"content": "toto", "id": "1"});
+    let task = _resp_to_task(&t);
+    assert!(task.is_none());
 }
