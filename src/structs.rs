@@ -1,7 +1,7 @@
 use core::fmt;
 use std::{collections::HashMap, iter::Enumerate};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum TaskStatus {
     RECEIVED,
     SUBMITTED,
@@ -39,7 +39,7 @@ pub trait MessagingService {
     fn update_task_status(&self, task: Task);
 }
 
-trait DownloadingService {
-    fn new(&self) -> Self;
-    fn submit_task(&self, task: Task) -> String;
+pub trait DownloadingService {
+    fn new() -> Self;
+    fn submit_task(&self, task: Task);
 }

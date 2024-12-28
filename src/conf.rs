@@ -7,12 +7,14 @@ pub struct Conf {
     pub discord_token: String,
     pub discord_channel: String,
     pub minutes_delta: usize,
+    pub synology_root_api: String,
 }
 
 lazy_static! {
     pub static ref CONF: Conf = Conf::new(
         std::env::var("DISCORD_TOKEN").expect("DISCORD_TOKEN must be set."),
         std::env::var("CHANNEL_ID").expect("CHANNEL_ID must be set."),
-        2
+        2,
+        std::env::var("ROOT_API").expect("ROOT_API must be set."),
     );
 }

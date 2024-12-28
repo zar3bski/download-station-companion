@@ -11,4 +11,5 @@ dotenv = "0.15.0"
 derive-new = "0.7.0"
 lazy_static = "1.5.0"
 chrono = "0.4.39"
+serde = {version = "1.0.217", features = ["derive"] }
 

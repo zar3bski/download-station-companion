@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::conf::CONF;
 use crate::structs::{MessagingService, Task, TaskStatus};
 use chrono::{DateTime, TimeDelta, Utc};

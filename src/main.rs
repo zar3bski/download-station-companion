@@ -7,8 +7,8 @@ use std::process;
 use dotenv::dotenv;
 use log::{error, info, LevelFilter};
 use logger::SimpleLogger;
-use services::discord::DiscordService;
-use structs::MessagingService;
+use services::{discord::DiscordService, download_station::DownloadStation};
+use structs::{DownloadingService, MessagingService};
 
 static LOGGER: SimpleLogger = SimpleLogger;
 
@@ -17,6 +17,7 @@ fn main() {
     let _ = log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Debug));
     info!("DS-Companion starting");
     let discord = DiscordService::new();
+    let download_station = DownloadStation::new();
     let tasks = discord.fetch_tasks();
     match tasks {
         Some(tasks) => {
