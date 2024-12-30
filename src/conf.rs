@@ -8,6 +8,8 @@ pub struct Conf {
     pub discord_channel: String,
     pub minutes_delta: usize,
     pub synology_root_api: String,
+    pub synology_user: String,
+    pub synology_password: String,
 }
 
 lazy_static! {
@@ -16,5 +18,7 @@ lazy_static! {
         std::env::var("CHANNEL_ID").expect("CHANNEL_ID must be set."),
         2,
         std::env::var("ROOT_API").expect("ROOT_API must be set."),
+        std::env::var("USERNAME").expect("USERNAME must be set."),
+        std::env::var("PASSWORD").expect("PASSWORD must be set."),
     );
 }

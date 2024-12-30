@@ -13,21 +13,21 @@ struct InfoResponse {
     success: bool,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct SynoApiAuth {
     path: String,
     minVersion: usize,
     maxVersion: usize,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct SynoDownloadStationTask {
     path: String,
     minVersion: usize,
     maxVersion: usize,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct ApiInformation {
     #[serde(rename = "SYNO.API.Auth")]
     auth: SynoApiAuth,
@@ -38,6 +38,7 @@ struct ApiInformation {
 pub struct DownloadStation {
     client: Client,
     api_information: ApiInformation,
+    sid: String,
 }
 
 impl DownloadingService for DownloadStation {
@@ -54,11 +55,37 @@ y=SYNO.API.Auth,SYNO.DownloadStation.Task",
             Ok(resp) => {
                 let root: InfoResponse =
                     serde_json::from_str(resp.text().unwrap().as_str()).unwrap();
-                debug!("Information gathered for Synology API");
-                return Self {
-                    client: client,
-                    api_information: root.data,
-                };
+                let api_information = root.data;
+                debug!(
+                    "Information gathered for Synology API: {:?}",
+                    api_information
+                );
+                // auth
+                let auth_resp = client
+                    .get(format!(
+                        "{}/webapi/{}?api=SYNO.API.Auth&version={}&method=login&accou
+nt={}&passwd={}&session=DownloadStation",
+                        CONF.synology_root_api,
+                        api_information.auth.path,
+                        6,
+                        CONF.synology_user,
+                        CONF.synology_password
+                    ))
+                    .send()
+                    .unwrap();
+                debug!("Auth request received status {}", auth_resp.status());
+                let data: Value = serde_json::from_str(&auth_resp.text().unwrap()).unwrap();
+                if data.get("success").unwrap() == true {
+                    let sid: String = data.get("data").unwrap().get("sid").unwrap().to_string();
+                    return Self {
+                        client: client,
+                        api_information: api_information,
+                        sid,
+                    };
+                } else {
+                    error!("Could not login to Synology API: {}", data.to_string());
+                    panic!()
+                }
             }
             Err(err) => {
                 error!("Could not get Download station API information: {err}");
@@ -66,5 +93,19 @@ y=SYNO.API.Auth,SYNO.DownloadStation.Task",
             }
         }
     }
+
+    fn drop(&self) {
+        let _ = &self
+            .client
+            .get(format!(
+                "{}/webapi/{}?api=SYNO.API.Auth&version={}&method=logout&session=DownloadStation",
+                CONF.synology_root_api,
+                &self.api_information.auth.path,
+                &self.api_information.auth.maxVersion
+            ))
+            .send();
+        debug!("Closed session for DownloadStation");
+    }
+
     fn submit_task(&self, task: Task) {}
 }

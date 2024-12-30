@@ -42,4 +42,5 @@ pub trait MessagingService {
 pub trait DownloadingService {
     fn new() -> Self;
     fn submit_task(&self, task: Task);
+    fn drop(&self);
 }
