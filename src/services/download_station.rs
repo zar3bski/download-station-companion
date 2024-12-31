@@ -1,5 +1,5 @@
 use crate::conf::CONF;
-use crate::structs::{DownloadingService, Task};
+use crate::structs::{DownloadingService, Task, TaskStatus};
 use log::{debug, error};
 use reqwest::blocking::Client;
 use serde::Deserialize;
@@ -94,6 +94,30 @@ nt={}&passwd={}&session=DownloadStation",
         }
     }
 
+    fn submit_task(&self, task: Task) {
+        let resp = self
+            .client
+            .post(format!(
+                "{}/webapi/{}?api=SYNO.DownloadStation.Task&version={}&method=create&uri={}&sid={}",
+                CONF.synology_root_api,
+                &self.api_information.task.path,
+                &self.api_information.task.maxVersion,
+                task.magnet_link,
+                &self.sid
+            ))
+            .send();
+        match resp {
+            Ok(res) => {
+                debug!("Task submitted successfully: {}", res.text().unwrap());
+                //TODO: parse response
+                task.set_status(TaskStatus::SUBMITTED);
+            }
+            Err(err) => {
+                error!("Could not submit download task: {err}");
+            }
+        }
+    }
+
     fn drop(&self) {
         let _ = &self
             .client
@@ -106,6 +130,4 @@ nt={}&passwd={}&session=DownloadStation",
             .send();
         debug!("Closed session for DownloadStation");
     }
-
-    fn submit_task(&self, task: Task) {}
 }

@@ -24,7 +24,7 @@ fn main() {
             info!("Found {} new download tasks. Proceeding", tasks.len());
             ///logic here
             for task in tasks {
-                discord.update_task_status(task);
+                download_station.submit_task(task);
             }
             ///
             info!("DS-Companion exiting gracefully");

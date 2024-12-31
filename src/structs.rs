@@ -1,5 +1,4 @@
 use core::fmt;
-use std::{collections::HashMap, iter::Enumerate};
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum TaskStatus {
@@ -16,27 +15,45 @@ impl fmt::Display for TaskStatus {
     }
 }
 
-#[derive(Debug)]
-pub struct Task {
+//#[derive(Debug)]
+pub struct Task<'a> {
     pub status: TaskStatus,
     pub message_id: String,
     pub magnet_link: String,
+    pub notifier: &'a dyn MessagingService,
 }
 
-impl Task {
-    pub fn new(magnet_link: String, message_id: String) -> Self {
+impl<'a> Task<'a> {
+    pub fn new(
+        magnet_link: String,
+        message_id: String,
+        notifier: &'a dyn MessagingService,
+    ) -> Self {
         Self {
-            magnet_link: magnet_link,
-            message_id: message_id,
+            magnet_link,
+            message_id,
             status: TaskStatus::RECEIVED,
+            notifier,
         }
+    }
+    // Update private field status and call the associated
+    // notifier
+    pub fn set_status(mut self, status: TaskStatus) {
+        self.status = status;
+        self.notifier.update_task_status(&self);
+    }
+
+    pub fn get_status(&self) -> String {
+        self.status.to_string()
     }
 }
 
 pub trait MessagingService {
-    fn new() -> Self;
+    fn new() -> Self
+    where
+        Self: Sized;
     fn fetch_tasks(&self) -> Option<Vec<Task>>;
-    fn update_task_status(&self, task: Task);
+    fn update_task_status(&self, task: &Task);
 }
 
 pub trait DownloadingService {

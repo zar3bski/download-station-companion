@@ -1,7 +1,6 @@
 use crate::conf::CONF;
-use crate::structs::{MessagingService, Task, TaskStatus};
+use crate::structs::{MessagingService, Task};
 use chrono::{DateTime, TimeDelta, Utc};
-use dotenv::dotenv;
 use log::{debug, error};
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, AUTHORIZATION, USER_AGENT};
@@ -9,13 +8,13 @@ use serde_json::{self, json};
 
 const BASE_URL: &str = "https://discord.com/api/v10";
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct DiscordService {
     client: Client,
     headers: HeaderMap,
 }
 
-fn _resp_to_task(obj: &serde_json::Value) -> Option<Task> {
+fn _resp_to_task(obj: serde_json::Value, notifier: &DiscordService) -> Option<Task> {
     let o = obj.as_object().unwrap();
     let after: chrono::DateTime<Utc> = Utc::now() - TimeDelta::minutes(CONF.minutes_delta as i64);
     if o["content"].as_str().unwrap().starts_with("magnet") {
@@ -23,7 +22,7 @@ fn _resp_to_task(obj: &serde_json::Value) -> Option<Task> {
             // TODO test delta filter
             let content = String::from(o["content"].as_str().unwrap());
             let id = String::from(o["id"].as_str().unwrap());
-            return Some(Task::new(content, id));
+            return Some(Task::new(content, id, notifier));
         } else {
             return None;
         }
@@ -33,7 +32,10 @@ fn _resp_to_task(obj: &serde_json::Value) -> Option<Task> {
 }
 
 impl MessagingService for DiscordService {
-    fn new() -> Self {
+    fn new() -> Self
+    where
+        Self: Sized,
+    {
         let client = Client::new();
         let mut headers = HeaderMap::new();
         headers.append(
@@ -41,11 +43,12 @@ impl MessagingService for DiscordService {
             format!("Bot {}", CONF.discord_token).parse().unwrap(),
         );
         headers.append(USER_AGENT, "Download-Station-Companion".parse().unwrap());
-        Self { client, headers }
+
+        return Self { client, headers };
     }
 
-    fn update_task_status(&self, task: Task) {
-        let body = json!({"content":task.status.to_string(), "message_reference":{"message_id":task.message_id}});
+    fn update_task_status(&self, task: &Task) {
+        let body = json!({"content":task.get_status(), "message_reference":{"message_id":task.message_id}});
         let resp = self
             .client
             .post(format!(
@@ -95,7 +98,7 @@ impl MessagingService for DiscordService {
                     .as_array()
                     .unwrap()
                     .iter()
-                    .map(|x| _resp_to_task(x))
+                    .map(|x| _resp_to_task(x.clone(), &self))
                     .filter(|x| x.is_some())
                     .map(|x| x.unwrap())
                     .collect();
@@ -115,11 +118,12 @@ impl MessagingService for DiscordService {
 
 /////Unit Tests/////
 
+//TODO: fix tests
 #[test]
 fn only_uses_magnet_links() {
     dotenv().ok();
     let s = json!({"content": "magnet:....", "id": "1","timestamp": "2044-12-25T19:07:12.600000+00:00"});
-    let task = _resp_to_task(&s);
+    let task = _resp_to_task(s.clone());
     assert!(task.is_some());
     let t = task.unwrap();
     assert!(t.message_id == "1");
@@ -127,6 +131,6 @@ fn only_uses_magnet_links() {
     assert!(t.status == TaskStatus::RECEIVED);
 
     let t = json!({"content": "toto", "id": "1","timestamp": "2044-12-25T19:07:12.600000+00:00"});
-    let task = _resp_to_task(&t);
+    let task = _resp_to_task(t.clone());
     assert!(task.is_none());
 }
