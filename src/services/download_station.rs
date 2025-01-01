@@ -1,9 +1,12 @@
+use std::str::FromStr;
+
 use crate::conf::CONF;
-use crate::structs::{DownloadingService, Task, TaskStatus};
+use crate::structs::{DownloadingService, Task, TaskStatus, API_USER_AGENT};
 use log::{debug, error};
 use reqwest::blocking::Client;
+use reqwest::header;
 use serde::Deserialize;
-use serde_json::Value;
+use serde_json::{json, Value};
 
 //https://global.download.synology.com/download/Document/Software/DeveloperGuide/Package/DownloadStation/All/enu/Synology_Download_Station_Web_API.pdf
 
@@ -44,6 +47,11 @@ pub struct DownloadStation {
 impl DownloadingService for DownloadStation {
     fn new() -> Self {
         let client = Client::new();
+        let mut request_headers = header::HeaderMap::new();
+        request_headers.insert(
+            header::USER_AGENT,
+            header::HeaderValue::from_static(API_USER_AGENT),
+        );
         let resp = client
             .get(format!(
                 "{}/webapi/query.cgi?api=SYNO.API.Info&version=1&method=query&quer
@@ -64,7 +72,7 @@ y=SYNO.API.Auth,SYNO.DownloadStation.Task",
                 let auth_resp = client
                     .get(format!(
                         "{}/webapi/{}?api=SYNO.API.Auth&version={}&method=login&accou
-nt={}&passwd={}&session=DownloadStation",
+nt={}&passwd={}&session=DownloadStation&format=sid",
                         CONF.synology_root_api,
                         api_information.auth.path,
                         6,
@@ -73,10 +81,17 @@ nt={}&passwd={}&session=DownloadStation",
                     ))
                     .send()
                     .unwrap();
-                debug!("Auth request received status {}", auth_resp.status());
+                debug!(
+                    "Auth request received status:{} headers: {:?}",
+                    auth_resp.status(),
+                    auth_resp.headers()
+                );
                 let data: Value = serde_json::from_str(&auth_resp.text().unwrap()).unwrap();
                 if data.get("success").unwrap() == true {
-                    let sid: String = data.get("data").unwrap().get("sid").unwrap().to_string();
+                    debug!("Login successful: {:?}", data);
+
+                    let sid = String::from_str(data["data"]["sid"].as_str().unwrap()).unwrap();
+                    debug!("sid: {:?}", sid);
                     return Self {
                         client: client,
                         api_information: api_information,
@@ -97,20 +112,16 @@ nt={}&passwd={}&session=DownloadStation",
     fn submit_task(&self, task: Task) {
         let resp = self
             .client
-            .post(format!(
-                "{}/webapi/{}?api=SYNO.DownloadStation.Task&version={}&method=create&uri={}&sid={}",
-                CONF.synology_root_api,
-                &self.api_information.task.path,
-                &self.api_information.task.maxVersion,
-                task.magnet_link,
-                &self.sid
+            .get(format!(
+                "{}/webapi/{}?api=SYNO.DownloadStation.Task&version=1&session=DownloadStation&method=create&_sid={}&uri={}",
+                CONF.synology_root_api, &self.api_information.task.path, &self.sid, urlencoding::encode(task.magnet_link.as_str())//trouver le moyen de l'échapper
             ))
             .send();
+        task.set_status(TaskStatus::SUBMITTED);
         match resp {
             Ok(res) => {
                 debug!("Task submitted successfully: {}", res.text().unwrap());
                 //TODO: parse response
-                task.set_status(TaskStatus::SUBMITTED);
             }
             Err(err) => {
                 error!("Could not submit download task: {err}");

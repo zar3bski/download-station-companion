@@ -1,9 +1,9 @@
 use crate::conf::CONF;
-use crate::structs::{MessagingService, Task};
+use crate::structs::{MessagingService, Task, API_USER_AGENT};
 use chrono::{DateTime, TimeDelta, Utc};
 use log::{debug, error};
 use reqwest::blocking::Client;
-use reqwest::header::{HeaderMap, AUTHORIZATION, USER_AGENT};
+use reqwest::header::{self, HeaderMap, AUTHORIZATION, USER_AGENT};
 use serde_json::{self, json};
 
 const BASE_URL: &str = "https://discord.com/api/v10";
@@ -42,7 +42,7 @@ impl MessagingService for DiscordService {
             AUTHORIZATION,
             format!("Bot {}", CONF.discord_token).parse().unwrap(),
         );
-        headers.append(USER_AGENT, "Download-Station-Companion".parse().unwrap());
+        headers.append(USER_AGENT, header::HeaderValue::from_static(API_USER_AGENT));
 
         return Self { client, headers };
     }

@@ -1,5 +1,7 @@
 use core::fmt;
 
+pub const API_USER_AGENT: &str = "Download-Station-Companion";
+
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum TaskStatus {
     RECEIVED,
