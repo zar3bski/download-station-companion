@@ -17,6 +17,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build
         run: cargo build --verbose
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ds-companion-latest
+          path: target/debug/ds-companion
+          overwrite: true
+
 
   tests:
     runs-on: ubuntu-latest
@@ -24,3 +30,4 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run tests
         run: cargo test --verbose
+  
