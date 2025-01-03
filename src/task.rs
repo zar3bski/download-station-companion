@@ -22,7 +22,7 @@ impl fmt::Display for TaskStatus {
 }
 
 pub struct Task<'a> {
-    pub status: TaskStatus,
+    status: TaskStatus,
     pub message_id: String,
     pub magnet_link: String,
     pub notifier: &'a dyn MessagingService,
@@ -48,7 +48,7 @@ impl<'a> Task<'a> {
         self.notifier.update_task_status(self);
     }
 
-    pub fn get_status(&self) -> String {
-        self.status.to_string()
+    pub fn get_status(&self) -> TaskStatus {
+        self.status
     }
 }

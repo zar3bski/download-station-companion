@@ -10,7 +10,6 @@ use log::{info, LevelFilter};
 use logger::SimpleLogger;
 use services::{discord::DiscordService, download_station::DownloadStation};
 use structs::{DownloadingService, MessagingService};
-use task::TaskStatus;
 
 static LOGGER: SimpleLogger = SimpleLogger;
 const REFRESH_TIME: Duration = Duration::from_secs(10);
@@ -26,7 +25,6 @@ fn main() {
     info!("Found {} new download tasks. Proceeding", tasks.len());
 
     for task in &mut tasks {
-        //move occurs because `tasks` has type `Vec<Task<'_>>`, which does not implement the `Copy` trait
         download_station.submit_task(task);
     }
 

@@ -145,10 +145,12 @@ nt={}&passwd={}&session=DownloadStation&format=sid",
                 for task_idx in 0..tasks.len() {
                     let task = &mut tasks[task_idx];
 
-                    if task.magnet_link == uri && DS_TO_COMPANION_MAPPING[status] != task.status {
+                    if task.magnet_link == uri
+                        && DS_TO_COMPANION_MAPPING[status] != task.get_status()
+                    {
                         let s: TaskStatus = DS_TO_COMPANION_MAPPING[status];
                         task.set_status(s);
-                        if task.get_status() == "DONE" && task.get_status() == "FAILED" {
+                        if s == TaskStatus::DONE || s == TaskStatus::FAILED {
                             tasks.remove(task_idx);
                         }
                     } else {
