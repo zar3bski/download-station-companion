@@ -15,13 +15,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Fake .env
+        run: cp .env.example .env 
       - name: Build
         run: cargo build --verbose
-      - uses: actions/upload-artifact@v4
+      - uses: google-github-actions/release-please-action@v3
+        id: release
         with:
-          name: ds-companion-latest
-          path: target/debug/ds-companion
-          overwrite: true
+          release-type: rust
 
 
   tests:
