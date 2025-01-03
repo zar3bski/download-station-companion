@@ -3,7 +3,6 @@ use crate::structs::{MessagingService, API_USER_AGENT};
 use crate::task::{Task, TaskStatus};
 use chrono::{DateTime, TimeDelta, Utc};
 use log::{debug, error};
-use mockall::automock;
 use reqwest::blocking::Client;
 use reqwest::header::{self, HeaderMap, AUTHORIZATION, USER_AGENT};
 use serde_json::{self, json};
@@ -94,7 +93,6 @@ impl MessagingService for DiscordService {
                     CONF.discord_channel,
                     res.status()
                 );
-                //FIXME : lourdingue
                 let tasks: Vec<Task> = res
                     .json::<serde_json::Value>()
                     .unwrap()

@@ -1,5 +1,3 @@
-use std::{mem, ptr::NonNull};
-
 use crate::task::Task;
 
 pub const API_USER_AGENT: &str = "Download-Station-Companion";

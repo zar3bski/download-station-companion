@@ -13,24 +13,31 @@ use serde_json::Value;
 
 //https://global.download.synology.com/download/Document/Software/DeveloperGuide/Package/DownloadStation/All/enu/Synology_Download_Station_Web_API.pdf
 
+#[allow(dead_code)]
 #[derive(Deserialize)]
 struct InfoResponse {
     data: ApiInformation,
     success: bool,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct SynoApiAuth {
     path: String,
-    minVersion: usize,
-    maxVersion: usize,
+    #[serde(rename = "minVersion")]
+    min_version: usize,
+    #[serde(rename = "maxVersion")]
+    max_version: usize,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct SynoDownloadStationTask {
     path: String,
-    minVersion: usize,
-    maxVersion: usize,
+    #[serde(rename = "minVersion")]
+    min_version: usize,
+    #[serde(rename = "maxVersion")]
+    max_version: usize,
 }
 
 #[derive(Deserialize, Debug)]
@@ -190,7 +197,7 @@ nt={}&passwd={}&session=DownloadStation&format=sid",
                 "{}/webapi/{}?api=SYNO.API.Auth&version={}&method=logout&session=DownloadStation",
                 CONF.synology_root_api,
                 self.api_information.auth.path,
-                self.api_information.auth.maxVersion
+                self.api_information.auth.max_version
             ))
             .send();
         debug!("Closed session for DownloadStation");

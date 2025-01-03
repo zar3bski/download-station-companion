@@ -3,7 +3,7 @@ mod logger;
 mod services;
 mod structs;
 mod task;
-use std::{process, thread, time::Duration};
+use std::{thread, time::Duration};
 
 use dotenv::dotenv;
 use log::{info, LevelFilter};

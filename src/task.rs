@@ -1,10 +1,5 @@
-use crate::services::discord::DiscordService;
 use crate::structs::MessagingService;
 use core::fmt;
-use std::alloc::{self, Layout};
-use std::any::Any;
-use std::ptr;
-use std::{mem, ptr::NonNull};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum TaskStatus {
