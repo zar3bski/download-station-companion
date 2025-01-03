@@ -1,7 +1,9 @@
 use crate::conf::CONF;
-use crate::structs::{MessagingService, Task, API_USER_AGENT};
+use crate::structs::{MessagingService, API_USER_AGENT};
+use crate::task::{Task, TaskStatus};
 use chrono::{DateTime, TimeDelta, Utc};
 use log::{debug, error};
+use mockall::automock;
 use reqwest::blocking::Client;
 use reqwest::header::{self, HeaderMap, AUTHORIZATION, USER_AGENT};
 use serde_json::{self, json};
@@ -22,7 +24,8 @@ fn _resp_to_task(obj: serde_json::Value, notifier: &DiscordService) -> Option<Ta
             // TODO test delta filter
             let content = String::from(o["content"].as_str().unwrap());
             let id = String::from(o["id"].as_str().unwrap());
-            return Some(Task::new(content, id, notifier));
+            let mut task = Task::new(content, id, notifier);
+            return Some(task);
         } else {
             return None;
         }
@@ -47,7 +50,7 @@ impl MessagingService for DiscordService {
         return Self { client, headers };
     }
 
-    fn update_task_status(&self, task: &Task) {
+    fn update_task_status(&self, task: &mut Task) {
         let body = json!({"content":task.get_status(), "message_reference":{"message_id":task.message_id}});
         let resp = self
             .client
@@ -121,9 +124,9 @@ impl MessagingService for DiscordService {
 //TODO: fix tests
 #[test]
 fn only_uses_magnet_links() {
-    dotenv().ok();
+    let notifier: DiscordService = DiscordService::new();
     let s = json!({"content": "magnet:....", "id": "1","timestamp": "2044-12-25T19:07:12.600000+00:00"});
-    let task = _resp_to_task(s.clone());
+    let task = _resp_to_task(s.clone(), &notifier);
     assert!(task.is_some());
     let t = task.unwrap();
     assert!(t.message_id == "1");
@@ -131,6 +134,6 @@ fn only_uses_magnet_links() {
     assert!(t.status == TaskStatus::RECEIVED);
 
     let t = json!({"content": "toto", "id": "1","timestamp": "2044-12-25T19:07:12.600000+00:00"});
-    let task = _resp_to_task(t.clone());
+    let task = _resp_to_task(t.clone(), &notifier);
     assert!(task.is_none());
 }

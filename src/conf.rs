@@ -16,7 +16,7 @@ lazy_static! {
     pub static ref CONF: Conf = Conf::new(
         std::env::var("DISCORD_TOKEN").expect("DISCORD_TOKEN must be set."),
         std::env::var("CHANNEL_ID").expect("CHANNEL_ID must be set."),
-        2,
+        1,
         std::env::var("ROOT_API").expect("ROOT_API must be set."),
         std::env::var("USERNAME").expect("USERNAME must be set."),
         std::env::var("PASSWORD").expect("PASSWORD must be set."),
