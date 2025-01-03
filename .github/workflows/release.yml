@@ -1,0 +1,36 @@
+name: Release
+
+on:
+  push:
+    tags:
+        - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:    
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      repository-projects: write
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: cargo build --release
+      - name: Get release
+        id: get_release
+        uses: bruceadams/get-release@v1.3.2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}      
+      - name: Upload release binary
+        uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
+          asset_path: ./target/release/ds-companion
+          asset_name: ds-companion
+          asset_content_type: application/octet-stream
