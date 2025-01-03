@@ -25,6 +25,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          echo ${{ github.ref_name }} &&
           curl -L \
             -X POST \
             -H "Accept: application/vnd.github+json" \
