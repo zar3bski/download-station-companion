@@ -19,20 +19,20 @@ fn main() {
     let _ = log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Debug));
     info!("DS-Companion starting");
     let discord = DiscordService::new();
-    let download_station = DownloadStation::new();
     let mut tasks = discord.fetch_tasks().unwrap();
 
     info!("Found {} new download tasks. Proceeding", tasks.len());
+    if tasks.len() > 0 {
+        let download_station = DownloadStation::new();
+        for task in &mut tasks {
+            download_station.submit_task(task);
+        }
 
-    for task in &mut tasks {
-        download_station.submit_task(task);
-    }
-
-    while tasks.is_empty() == false {
-        thread::sleep(REFRESH_TIME);
-        download_station.get_jobs_advancement(&mut tasks);
+        while tasks.is_empty() == false {
+            thread::sleep(REFRESH_TIME);
+            download_station.get_jobs_advancement(&mut tasks);
+        }
     }
 
     info!("DS-Companion exiting gracefully");
-    process::exit(0)
 }

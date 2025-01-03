@@ -1,4 +1,3 @@
-use core::fmt;
 use std::{mem, ptr::NonNull};
 
 use crate::task::Task;
@@ -17,5 +16,5 @@ pub trait DownloadingService {
     fn new() -> Self;
     fn submit_task(&self, task: &mut Task);
     fn get_jobs_advancement(&self, tasks: &mut Vec<Task>);
-    fn drop(&self);
+    fn drop(self);
 }

@@ -183,14 +183,14 @@ nt={}&passwd={}&session=DownloadStation&format=sid",
         }
     }
 
-    fn drop(&self) {
-        let _ = &self
+    fn drop(self) {
+        let _ = self
             .client
             .get(format!(
                 "{}/webapi/{}?api=SYNO.API.Auth&version={}&method=logout&session=DownloadStation",
                 CONF.synology_root_api,
-                &self.api_information.auth.path,
-                &self.api_information.auth.maxVersion
+                self.api_information.auth.path,
+                self.api_information.auth.maxVersion
             ))
             .send();
         debug!("Closed session for DownloadStation");
