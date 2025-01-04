@@ -15,9 +15,9 @@ jobs:
       matrix:
         os:
           - name: linux
-            architecture: x86-64
+            architecture: x86_64
           - name: linux
-            architecture: arm64
+            architecture: aarch64
 
     permissions:
       contents: write
@@ -29,7 +29,7 @@ jobs:
       - name: Edit Cargo.toml to reflect the tag
         run: sed -i -E 's/^version = "[0-9]+.[0-9]+.[0-9]+*"/version = "${{ github.ref_name }}"/' Cargo.toml   
       - name: Build
-        run: cargo build --release
+        run: cargo build --target ${{ matrix.os.architecture }}-unknown-linux-gnu --release
       - name: Get release
         id: get_release
         uses: bruceadams/get-release@v1.3.2
@@ -41,7 +41,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         with:
           upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./target/release/ds-companion
+          asset_path: ./target/${{ matrix.os.architecture }}-unknown-linux-gnu/release/ds-companion
           asset_name: ds-companion-${{ matrix.os.architecture }}
           asset_content_type: application/octet-stream
       - name: Push incremented Cargo.toml to current branch
