@@ -13,9 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        platform:
-          - linux/arm64/v8
-          - linux/amd64
+        os:
+          - name: linux
+            architecture: x86-64
+          - name: linux
+            architecture: arm64
+
     permissions:
       contents: write
       pull-requests: write
@@ -37,5 +40,5 @@ jobs:
         with:
           upload_url: ${{ steps.get_release.outputs.upload_url }}
           asset_path: ./target/release/ds-companion
-          asset_name: ds-companion-${{ runner.arch }}
+          asset_name: ds-companion-${{ matrix.os.architecture }}
           asset_content_type: application/octet-stream
