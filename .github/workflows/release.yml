@@ -27,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Edit Cargo.toml to reflect the tag
-        run: sed -i -E 's/$version = "[0-9]+.[0-9]+.[0-9]+*"/version = "${{ github.ref_name }}"/' Cargo.toml   
+        run: sed -i -E 's/^version = "[0-9]+.[0-9]+.[0-9]+*"/version = "${{ github.ref_name }}"/' Cargo.toml   
       - name: Build
         run: cargo build --release
       - name: Get release
@@ -45,6 +45,7 @@ jobs:
           asset_name: ds-companion-${{ matrix.os.architecture }}
           asset_content_type: application/octet-stream
       - name: Push incremented Cargo.toml to current branch
+        if: matrix.os.architecture == 'x86-64'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore: update version in Cargo.toml"
