@@ -11,6 +11,11 @@ env:
 jobs:
   build:    
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform:
+          - linux/arm64/v8
+          - linux/amd64
     permissions:
       contents: write
       pull-requests: write
@@ -32,5 +37,5 @@ jobs:
         with:
           upload_url: ${{ steps.get_release.outputs.upload_url }}
           asset_path: ./target/release/ds-companion
-          asset_name: ds-companion
+          asset_name: ds-companion-${{ runner.arch }}
           asset_content_type: application/octet-stream
