@@ -34,7 +34,21 @@ The bot:
 
 ### Install 
 
-TODO
+as **root**
+
+```shell
+# depending on your architecture, choose
+wget https://github.com/zar3bski/ds-companion/releases/latest/download/ds-companion-<aarch64 | x86_64 > -O /usr/local/bin/ds-companion
+chmod +x /usr/local/bin/ds-companion
+
+touch /etc/cron.d/ds-companion
+chmod 600 /etc/cron.d/ds-companion
+
+cat <<EOT >> /etc/cron.d/ds-companion
+# ds-companion checks every two minutes for new download tasks
+*/2 * * * * root /usr/local/bin/ds-companion --discord-token <DISCORD_TOKEN> --discord-channel <DISCORD_CHANNEL> --synology-root-api <SYNOLOGY_ROOT_API> --synology-user <SYNOLOGY_USER> --synology-password <SYNOLOGY_PASSWORD>
+EOT
+```
 
 |        arg        |  type  |       env var       | description                                                            |
 | :---------------: | :----: | :-----------------: | :--------------------------------------------------------------------- |
