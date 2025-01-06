@@ -17,7 +17,7 @@ const REFRESH_TIME: Duration = Duration::from_secs(10);
 fn main() {
     dotenv().ok();
     let _ = log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Debug));
-    info!("DS-Companion starting");
+    info!("DS-Companion {} starting", env!("CARGO_PKG_VERSION"));
     let discord = DiscordService::new();
     let mut tasks = discord.fetch_tasks().unwrap();
 
