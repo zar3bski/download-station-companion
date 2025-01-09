@@ -1,8 +1,9 @@
-use clap::Parser;
-use lazy_static::lazy_static;
+use std::{env, sync::Arc};
 
-//TODO: should be defined both by env vars and cli args
-#[derive(Debug, Parser)]
+use clap::Parser;
+use once_cell::sync::Lazy;
+
+#[derive(Debug, Parser, Default)]
 pub struct Conf {
     #[arg(long, env)]
     pub discord_token: String,
@@ -18,9 +19,7 @@ pub struct Conf {
     pub synology_password: String,
 }
 
-lazy_static! {
-    pub static ref CONF: Conf = {
-        let cfg = Conf::parse();
-        cfg
-    };
-}
+pub static CONF: Lazy<Arc<Conf>> = Lazy::new(|| {
+    let cfg = Conf::parse();
+    Arc::new(cfg)
+});
