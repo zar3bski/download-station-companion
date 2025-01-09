@@ -1,0 +1,6 @@
+[env]
+DISCORD_TOKEN="<your_vars>"
+DISCORD_CHANNEL="<your_vars>"
+SYNOLOGY_ROOT_API="http://127.0.0.1:5000/"
+SYNOLOGY_USER="<your_vars>"
+SYNOLOGY_PASSWORD="<your_vars>"

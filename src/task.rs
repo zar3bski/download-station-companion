@@ -1,4 +1,4 @@
-use crate::structs::MessagingService;
+use crate::traits::MessagingController;
 use core::fmt;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -20,14 +20,14 @@ pub struct Task<'a> {
     status: TaskStatus,
     pub message_id: String,
     pub magnet_link: String,
-    pub notifier: &'a dyn MessagingService,
+    pub notifier: &'a dyn MessagingController,
 }
 
 impl<'a> Task<'a> {
     pub fn new(
         magnet_link: String,
         message_id: String,
-        notifier: &'a dyn MessagingService,
+        notifier: &'a dyn MessagingController,
     ) -> Self {
         Self {
             magnet_link,
