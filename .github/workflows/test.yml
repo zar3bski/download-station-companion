@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Fake .env
-        run: cp .env.example .env 
+        run: cp .cargo/config.toml.example .cargo/config.toml
       - name: Run tests
         run: cargo test --verbose
   
