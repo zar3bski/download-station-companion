@@ -14,6 +14,7 @@ Download-station-companion (**ds-companion**) is the dumbest handler covering 90
 
 * launch a download by posting a magnet link on a discord channel
 * follow it progression with the answers to this very post
+* set destination folder
 
 ## Usage
 
@@ -58,4 +59,11 @@ EOT
 | synology_root_api | String | `SYNOLOGY_ROOT_API` | Root API of your local Synology server (e.g. http://192.168.1.45:5000) |
 |   synology_user   | String |   `SYNOLOGY_USER`   | synology user with rights on the Download Station app and it API       |
 | synology_password | String | `SYNOLOGY_PASSWORD` | password of this very user                                             |
+
+### Launch tasks by sending messages
+
+```
+magnet:?xt<YOUR MAGNET LINK>
+To: <DESTINATION FOLDER> (optionnal)
+```
 

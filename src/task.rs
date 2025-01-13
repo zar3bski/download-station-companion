@@ -21,6 +21,7 @@ pub struct Task<'a> {
     pub message_id: String,
     pub magnet_link: String,
     pub notifier: &'a dyn MessagingController,
+    pub destination_folder: Option<String>,
 }
 
 impl<'a> Task<'a> {
@@ -28,19 +29,21 @@ impl<'a> Task<'a> {
         magnet_link: String,
         message_id: String,
         notifier: &'a dyn MessagingController,
+        destination_folder: Option<String>,
     ) -> Self {
         Self {
             magnet_link,
             message_id,
             status: TaskStatus::RECEIVED,
             notifier,
+            destination_folder,
         }
     }
     // Update private field status and call the associated
     // notifier
     pub fn set_status(&mut self, status: TaskStatus) {
         self.status = status;
-        self.notifier.update_task_status(self);
+        self.notifier.update_task_status(self, None);
     }
 
     pub fn get_status(&self) -> TaskStatus {
