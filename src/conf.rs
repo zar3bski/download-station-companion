@@ -1,4 +1,4 @@
-use std::{env, sync::Arc};
+use std::sync::Arc;
 
 use clap::Parser;
 use once_cell::sync::Lazy;

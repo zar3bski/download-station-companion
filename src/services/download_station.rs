@@ -196,7 +196,7 @@ impl<T: HTTPService> DownloadingController for DsControler<T> {
 
     fn get_jobs_advancement(&self, tasks: &mut Vec<Task>) {
         let url = format!(
-            "{}?api=SYNO.DownloadStation.Task&version=1&session=DsControler&method=list&additional=detail&username={}",
+            "{}?api=SYNO.DownloadStation.Task&version=1&session=DownloadStation&method=list&additional=detail&username={}",
             CONF.synology_root_api, CONF.synology_user
         );
         let req = Request::new(Method::GET, Url::parse(url.as_str()).unwrap());
@@ -229,11 +229,23 @@ impl<T: HTTPService> DownloadingController for DsControler<T> {
     }
 
     fn submit_task(&self, task: &mut Task) {
-        let url = format!(
-            "{}?api=SYNO.DownloadStation.Task&version=1&session=DsControler&method=create&uri={}",
+        let mut url = format!(
+            "{}?api=SYNO.DownloadStation.Task&version=1&session=DownloadStation&method=create&uri={}",
             CONF.synology_root_api,
             urlencoding::encode(task.magnet_link.as_str())
         );
+
+        if task.destination_folder.is_some() {
+            url.push_str(
+                format!(
+                    "&destination={}",
+                    urlencoding::encode(task.destination_folder.clone().unwrap().as_str())
+                        .into_owned()
+                )
+                .as_str(),
+            );
+        }
+
         let req = Request::new(Method::GET, Url::parse(url.as_str()).unwrap());
         let resp = self.service.send_request(req);
 
@@ -252,32 +264,27 @@ impl<T: HTTPService> DownloadingController for DsControler<T> {
 #[cfg(test)]
 pub mod tests {
 
-    use std::str::FromStr;
+    use std::{cell::RefCell, str::FromStr};
 
-    use serde_json::json;
+    use reqwest::{blocking::Request, Method, Url};
+    use serde_json::{json, Value};
 
     use crate::{
-        conf::CONF, services::download_station::DS_TO_COMPANION_MAPPING, task::TaskStatus,
-        traits::HTTPService,
+        services::{
+            discord::DiscordController,
+            download_station::{DsControler, DS_TO_COMPANION_MAPPING},
+        },
+        task::{Task, TaskStatus},
+        traits::{DownloadingController, HTTPService, MessagingController},
     };
 
-    struct DsServiceMock {
-        channel: String,
-    }
-
-    impl HTTPService for DsServiceMock {
+    struct DiscordServiceMock {}
+    impl HTTPService for DiscordServiceMock {
         fn new() -> Self {
-            println!("{}", CONF.discord_channel);
-            let channel = "TODO".to_string();
-
-            Self { channel }
+            Self {}
         }
-        fn send_request(&self, req: reqwest::blocking::Request) -> Option<serde_json::Value> {
-            let data = json!({
-                "nothing":
-                "to say"
-            });
-            return Some(data);
+        fn send_request(&self, _: Request) -> Option<Value> {
+            return Some(json!({}));
         }
     }
 
@@ -291,8 +298,46 @@ pub mod tests {
     }
 
     #[test]
-    fn todo() {
-        let service = DsServiceMock::new();
-        assert!(service.channel == "TODO")
+    fn destination_folder_set_in_url() {
+        struct DsServiceMock {
+            request: RefCell<Request>,
+        }
+
+        impl HTTPService for DsServiceMock {
+            fn new() -> Self {
+                let request: RefCell<Request> = RefCell::new(Request::new(
+                    Method::GET,
+                    Url::parse("http://nowhere").unwrap(),
+                )); // inject here
+                Self { request }
+            }
+            fn send_request(&self, req: Request) -> Option<Value> {
+                // copy request in reqs
+                self.request.replace_with(|old| req);
+                let data = json!({
+                    "nothing":
+                    "to say"
+                });
+                return Some(data);
+            }
+        }
+
+        let controler = DsControler::<DsServiceMock>::new();
+        let messaging_controler = DiscordController::<DiscordServiceMock>::new();
+        let mut task = Task::new(
+            String::from_str("magnet:aaaaa").unwrap(),
+            String::from_str("1").unwrap(),
+            &messaging_controler,
+            Some(String::from_str("videos/Movies").unwrap()),
+        );
+
+        controler.submit_task(&mut task);
+        assert!(controler
+            .service
+            .request
+            .into_inner()
+            .url()
+            .as_str()
+            .contains("&destination=videos%2FMovies"))
     }
 }

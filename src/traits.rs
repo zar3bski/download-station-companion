@@ -8,14 +8,13 @@ pub trait MessagingController {
     where
         Self: Sized;
     fn fetch_tasks(&self) -> Option<Vec<Task>>;
-    fn update_task_status(&self, task: &mut Task);
+    fn update_task_status(&self, task: &mut Task, message: Option<&str>);
 }
 
 pub trait DownloadingController {
     fn new() -> Self;
     fn submit_task(&self, task: &mut Task);
     fn get_jobs_advancement(&self, tasks: &mut Vec<Task>);
-    //fn drop(self);
 }
 
 pub trait HTTPService {

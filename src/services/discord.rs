@@ -1,12 +1,13 @@
-use std::io::{Cursor, Read};
+use std::io::Cursor;
 
 use crate::conf::CONF;
-use crate::task::{Task, TaskStatus};
+use crate::task::Task;
 use crate::traits::{HTTPService, MessagingController};
 use chrono::{DateTime, TimeDelta, Utc};
 use log::{debug, error, warn};
+use regex::Regex;
 use reqwest::blocking::{Body, Client, Request};
-use reqwest::header::{self, HeaderMap, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
+use reqwest::header::{self, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 
 use reqwest::{Method, Url};
 use serde_json::{self, json, Value};
@@ -80,11 +81,36 @@ fn _resp_to_task<T: HTTPService>(
     let after: chrono::DateTime<Utc> = Utc::now() - TimeDelta::minutes(CONF.minutes_delta as i64);
     if o["content"].as_str().unwrap().starts_with("magnet") {
         if DateTime::parse_from_str(o["timestamp"].as_str().unwrap(), "%+").unwrap() > after {
-            // TODO test delta filter
-            let content = String::from(o["content"].as_str().unwrap());
             let id = String::from(o["id"].as_str().unwrap());
-            let mut task = Task::new(content, id, notifier);
-            return Some(task);
+            let mut content = o["content"].as_str().unwrap().split('\n');
+            let magnet_link = String::from(content.next().unwrap());
+            let destination_folder = content.next();
+            match destination_folder {
+                Some(dest) => {
+                    let re = Regex::new(r"^[t|T]o:\s*(?<path>[\w\/\s]*)\s*$").unwrap();
+                    let path_match = re.captures(dest);
+                    match path_match {
+                        Some(path_match) => {
+                            return Some(Task::new(
+                                magnet_link,
+                                id,
+                                notifier,
+                                Some(String::from(String::from(&path_match["path"]))),
+                            ));
+                        }
+                        None => {
+                            //notifier.update_task_status(task);
+                            //TODO: notify user that path parsing did not work
+                            let mut task = Task::new(magnet_link, id, notifier, None);
+                            notifier.update_task_status(&mut task, Some("Destination path could not be parsed, using default destination folder"));
+                            return Some(task);
+                        }
+                    }
+                }
+                None => {
+                    return Some(Task::new(magnet_link, id, notifier, None));
+                }
+            }
         } else {
             return None;
         }
@@ -103,8 +129,13 @@ impl<T: HTTPService> MessagingController for DiscordController<T> {
         return Self { service };
     }
 
-    fn update_task_status(&self, task: &mut Task) {
-        let body = json!({"content":task.get_status().to_string(), "message_reference":{"message_id":task.message_id}});
+    fn update_task_status(&self, task: &mut Task, message: Option<&str>) {
+        let content = if (message.is_none()) {
+            task.get_status().to_string()
+        } else {
+            message.unwrap().to_string()
+        };
+        let body = json!({"content":content, "message_reference":{"message_id":task.message_id}});
         let cursor = Cursor::new(body.to_string());
         let url = format!("{BASE_URL}/channels/{}/messages", CONF.discord_channel);
         let mut req = Request::new(Method::POST, Url::parse(url.as_str()).unwrap());
@@ -158,14 +189,10 @@ impl<T: HTTPService> MessagingController for DiscordController<T> {
 
 #[cfg(test)]
 pub mod tests {
-    use std::{env, sync::Arc};
-
-    use once_cell::sync::Lazy;
     use reqwest::blocking::Request;
     use serde_json::{json, Value};
 
     use crate::{
-        conf::Conf,
         services::discord::DiscordController,
         traits::{HTTPService, MessagingController},
     };
@@ -214,5 +241,35 @@ pub mod tests {
         //task analysis
         let task = tasks.pop().unwrap();
         assert!(task.magnet_link == "magnet:cccc")
+    }
+
+    #[test]
+    fn set_destination_folder() {
+        struct DiscordServiceMock {}
+        impl HTTPService for DiscordServiceMock {
+            fn new() -> Self {
+                Self {}
+            }
+            fn send_request(&self, _: Request) -> Option<Value> {
+                return Some(json!([
+                    {"content": "magnet:bbbb\nTo: videos/Movies", "id": "5","timestamp": "2044-12-25T19:07:12.600000+00:00"},
+                    {"content": "magnet:bbbb\nto:videos/Series", "id": "6","timestamp": "2044-12-25T19:07:12.600000+00:00"},
+                    {"content": "magnet:bbbb\nTo: videos/ Somewhere", "id": "7","timestamp": "2044-12-25T19:07:12.600000+00:00"}
+                ]));
+            }
+        }
+        let controler = DiscordController::<DiscordServiceMock>::new();
+        let mut tasks = controler.fetch_tasks().unwrap();
+        assert!(tasks.len() == 3);
+        //task analysis
+
+        let task = tasks.pop().unwrap();
+        assert!(task.destination_folder.unwrap() == "videos/ Somewhere");
+
+        let task = tasks.pop().unwrap();
+        assert!(task.destination_folder.unwrap() == "videos/Series");
+
+        let task = tasks.pop().unwrap();
+        assert!(task.destination_folder.unwrap() == "videos/Movies");
     }
 }
