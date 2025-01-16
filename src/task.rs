@@ -22,6 +22,7 @@ pub struct Task<'a> {
     pub magnet_link: String,
     pub notifier: &'a dyn MessagingController,
     pub destination_folder: Option<String>,
+    pub user_id: String,
 }
 
 impl<'a> Task<'a> {
@@ -30,6 +31,7 @@ impl<'a> Task<'a> {
         message_id: String,
         notifier: &'a dyn MessagingController,
         destination_folder: Option<String>,
+        user_id: String,
     ) -> Self {
         Self {
             magnet_link,
@@ -37,6 +39,7 @@ impl<'a> Task<'a> {
             status: TaskStatus::RECEIVED,
             notifier,
             destination_folder,
+            user_id,
         }
     }
     // Update private field status and call the associated
