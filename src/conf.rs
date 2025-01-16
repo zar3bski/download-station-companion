@@ -4,6 +4,7 @@ use clap::Parser;
 use once_cell::sync::Lazy;
 
 #[derive(Debug, Parser, Default)]
+#[clap(version)]
 pub struct Conf {
     #[arg(long, env)]
     pub discord_token: String,
