@@ -329,6 +329,7 @@ pub mod tests {
             String::from_str("1").unwrap(),
             &messaging_controler,
             Some(String::from_str("videos/Movies").unwrap()),
+            String::from_str("1").unwrap(),
         );
 
         controler.submit_task(&mut task);

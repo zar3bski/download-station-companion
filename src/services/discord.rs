@@ -1,7 +1,8 @@
 use std::io::Cursor;
+use std::str::FromStr;
 
 use crate::conf::CONF;
-use crate::task::Task;
+use crate::task::{Task, TaskStatus};
 use crate::traits::{HTTPService, MessagingController};
 use chrono::{DateTime, TimeDelta, Utc};
 use log::{debug, error, warn};
@@ -82,6 +83,7 @@ fn _resp_to_task<T: HTTPService>(
     if o["content"].as_str().unwrap().starts_with("magnet") {
         if DateTime::parse_from_str(o["timestamp"].as_str().unwrap(), "%+").unwrap() > after {
             let id = String::from(o["id"].as_str().unwrap());
+            let user_id = String::from(o["author"]["id"].as_str().unwrap());
             let mut content = o["content"].as_str().unwrap().split('\n');
             let magnet_link = String::from(content.next().unwrap());
             let destination_folder = content.next();
@@ -96,19 +98,20 @@ fn _resp_to_task<T: HTTPService>(
                                 id,
                                 notifier,
                                 Some(String::from(String::from(&path_match["path"]))),
+                                user_id,
                             ));
                         }
                         None => {
                             //notifier.update_task_status(task);
                             //TODO: notify user that path parsing did not work
-                            let mut task = Task::new(magnet_link, id, notifier, None);
+                            let mut task = Task::new(magnet_link, id, notifier, None, user_id);
                             notifier.update_task_status(&mut task, Some("Destination path could not be parsed, using default destination folder"));
                             return Some(task);
                         }
                     }
                 }
                 None => {
-                    return Some(Task::new(magnet_link, id, notifier, None));
+                    return Some(Task::new(magnet_link, id, notifier, None, user_id));
                 }
             }
         } else {
@@ -131,11 +134,17 @@ impl<T: HTTPService> MessagingController for DiscordController<T> {
 
     fn update_task_status(&self, task: &mut Task, message: Option<&str>) {
         let content = if (message.is_none()) {
-            task.get_status().to_string()
+            if task.get_status() == TaskStatus::DONE || task.get_status() == TaskStatus::FAILED {
+                task.get_status().to_string()
+                    + &String::from_str(&format!(" <@{}>", task.user_id)).unwrap()
+            } else {
+                task.get_status().to_string()
+            }
         } else {
             message.unwrap().to_string()
         };
-        let body = json!({"content":content, "message_reference":{"message_id":task.message_id}});
+        let body = json!({"content":content, "message_reference":{"message_id":task.message_id}, "allowed_mentions": {"users": [task.user_id]}});
+
         let cursor = Cursor::new(body.to_string());
         let url = format!("{BASE_URL}/channels/{}/messages", CONF.discord_channel);
         let mut req = Request::new(Method::POST, Url::parse(url.as_str()).unwrap());
@@ -206,8 +215,8 @@ pub mod tests {
             }
             fn send_request(&self, _: Request) -> Option<Value> {
                 return Some(json!([
-                    {"content": "magnet:aaaa", "id": "1","timestamp": "2044-12-25T19:07:12.600000+00:00"},
-                    {"content": "notmagnet:....", "id": "2","timestamp": "2044-12-25T19:07:12.600000+00:00"}
+                    {"content": "magnet:aaaa", "id": "1","timestamp": "2044-12-25T19:07:12.600000+00:00", "author":{"id":"xxx"}},
+                    {"content": "notmagnet:....", "id": "2","timestamp": "2044-12-25T19:07:12.600000+00:00", "author":{"id":"xxx"}}
                 ]));
             }
         }
@@ -218,7 +227,8 @@ pub mod tests {
         let task = tasks.pop().unwrap();
 
         //task analysis
-        assert!(task.magnet_link == "magnet:aaaa")
+        assert!(task.magnet_link == "magnet:aaaa");
+        assert!(task.user_id == "xxx")
     }
 
     #[test]
@@ -230,8 +240,8 @@ pub mod tests {
             }
             fn send_request(&self, _: Request) -> Option<Value> {
                 return Some(json!([
-                    {"content": "magnet:bbbb", "id": "3","timestamp": "2004-12-25T19:07:12.600000+00:00"},
-                    {"content": "magnet:cccc", "id": "4","timestamp": "2044-12-25T19:07:12.600000+00:00"}
+                    {"content": "magnet:bbbb", "id": "3","timestamp": "2004-12-25T19:07:12.600000+00:00", "author":{"id":"xxx"}},
+                    {"content": "magnet:cccc", "id": "4","timestamp": "2044-12-25T19:07:12.600000+00:00", "author":{"id":"xxx"}}
                 ]));
             }
         }
@@ -252,9 +262,9 @@ pub mod tests {
             }
             fn send_request(&self, _: Request) -> Option<Value> {
                 return Some(json!([
-                    {"content": "magnet:bbbb\nTo: videos/Movies", "id": "5","timestamp": "2044-12-25T19:07:12.600000+00:00"},
-                    {"content": "magnet:bbbb\nto:videos/Series", "id": "6","timestamp": "2044-12-25T19:07:12.600000+00:00"},
-                    {"content": "magnet:bbbb\nTo: videos/ Somewhere", "id": "7","timestamp": "2044-12-25T19:07:12.600000+00:00"}
+                    {"content": "magnet:bbbb\nTo: videos/Movies", "id": "5","timestamp": "2044-12-25T19:07:12.600000+00:00", "author":{"id":"xxx"}},
+                    {"content": "magnet:bbbb\nto:videos/Series", "id": "6","timestamp": "2044-12-25T19:07:12.600000+00:00", "author":{"id":"xxx"}},
+                    {"content": "magnet:bbbb\nTo: videos/ Somewhere", "id": "7","timestamp": "2044-12-25T19:07:12.600000+00:00", "author":{"id":"xxx"}}
                 ]));
             }
         }
