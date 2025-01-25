@@ -1,92 +1,22 @@
-use std::collections::HashMap;
 use std::str::FromStr;
-use std::sync::Arc;
 
 use crate::conf::CONF;
+use crate::services::schemas::{InfoResponse, DS_ERROR_CODES};
 use crate::services::API_CONTENT_TYPE;
 use crate::task::{Source, Task, TaskStatus};
 use crate::traits::{DownloadingController, HTTPService, Payload};
 use bytes::Bytes;
 use log::{debug, error, warn};
-use once_cell::sync::Lazy;
+
 use reqwest::blocking::Client;
 use reqwest::header::{self, HeaderValue, ACCEPT, USER_AGENT};
 use reqwest::{Method, Url};
-use serde::Deserialize;
 use serde_json::Value;
 
+use super::schemas::{ApiInformation, DS_TO_COMPANION_MAPPING};
 use super::API_USER_AGENT;
 
 //https://global.download.synology.com/download/Document/Software/DeveloperGuide/Package/DsControler/All/enu/Synology_Download_Station_Web_API.pdf
-
-#[allow(dead_code)]
-#[derive(Deserialize)]
-struct InfoResponse {
-    data: ApiInformation,
-    success: bool,
-}
-
-#[allow(dead_code)]
-#[derive(Deserialize, Debug)]
-struct SynoApiAuth {
-    path: String,
-    #[serde(rename = "minVersion")]
-    min_version: usize,
-    #[serde(rename = "maxVersion")]
-    max_version: usize,
-}
-
-#[allow(dead_code)]
-#[derive(Deserialize, Debug)]
-struct SynoDsControlerTask {
-    path: String,
-    #[serde(rename = "minVersion")]
-    min_version: usize,
-    #[serde(rename = "maxVersion")]
-    max_version: usize,
-}
-
-#[derive(Deserialize, Debug)]
-struct ApiInformation {
-    #[serde(rename = "SYNO.API.Auth")]
-    auth: SynoApiAuth,
-    #[serde(rename = "SYNO.DownloadStation.Task")]
-    task: SynoDsControlerTask,
-}
-
-pub static DS_TO_COMPANION_MAPPING: Lazy<Arc<HashMap<&'static str, TaskStatus>>> =
-    Lazy::new(|| {
-        let hash = HashMap::from([
-            ("waiting", TaskStatus::SUBMITTED),
-            ("downloading", TaskStatus::DOWNLOADING),
-            ("paused", TaskStatus::DOWNLOADING),
-            ("finishing", TaskStatus::DOWNLOADING),
-            ("finished", TaskStatus::DONE),
-            ("hash_checking", TaskStatus::SUBMITTED),
-            ("seeding", TaskStatus::DONE),
-            ("filehosting_waiting", TaskStatus::SUBMITTED),
-            ("extracting", TaskStatus::DOWNLOADING),
-            ("error", TaskStatus::FAILED),
-        ]);
-        Arc::new(hash)
-    });
-
-pub static DS_ERROR_CODES: Lazy<Arc<HashMap<u8, &str>>> = Lazy::new(|| {
-    let mapping = HashMap::from([
-        (100 as u8, "Unknown error"),
-        (101 as u8, "Invalid parameter"),
-        (102 as u8, "The requested API does not exist"),
-        (103 as u8, "The requested method does not exist"),
-        (
-            104 as u8,
-            "The requested version does not support the functionality",
-        ),
-        (105 as u8, "The logged in session does not have permission"),
-        (106 as u8, "Session timeout"),
-        (107 as u8, "Session interrupted by duplicate login"),
-    ]);
-    Arc::new(mapping)
-});
 
 pub struct DsControler<T> {
     service: T,
