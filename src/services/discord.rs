@@ -2,8 +2,8 @@ use std::io::Cursor;
 use std::str::FromStr;
 
 use crate::conf::CONF;
-use crate::task::{Source, Task, TaskStatus};
-use crate::traits::{HTTPService, MessagingController, Payload};
+use crate::core::task::{Source, Task, TaskStatus};
+use crate::core::traits::{HTTPService, MessagingController, Payload};
 use bytes::Bytes;
 use chrono::{DateTime, TimeDelta, Utc};
 use log::{debug, error, warn};
@@ -282,9 +282,9 @@ pub mod tests {
     use serde_json::{json, Value};
 
     use crate::{
+        core::task::Source,
+        core::traits::{HTTPService, MessagingController, Payload},
         services::discord::DiscordController,
-        task::Source,
-        traits::{HTTPService, MessagingController, Payload},
     };
 
     #[test]

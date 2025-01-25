@@ -1,8 +1,8 @@
 mod conf;
+mod core;
 mod logger;
 mod services;
-mod task;
-mod traits;
+use core::traits::{DownloadingController, MessagingController};
 use log::{info, LevelFilter};
 use logger::SimpleLogger;
 use services::{
@@ -10,7 +10,6 @@ use services::{
     download_station::{DsControler, DsService},
 };
 use std::{thread, time::Duration};
-use traits::{DownloadingController, MessagingController};
 
 static LOGGER: SimpleLogger = SimpleLogger;
 const REFRESH_TIME: Duration = Duration::from_secs(10);

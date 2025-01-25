@@ -1,6 +1,8 @@
-use crate::traits::MessagingController;
 use bytes::Bytes;
 use core::fmt;
+use traits::MessagingController;
+
+use super::traits;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum TaskStatus {

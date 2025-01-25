@@ -3,7 +3,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::task::TaskStatus;
+use crate::core::task::TaskStatus;
 
 #[allow(dead_code)]
 #[derive(Deserialize)]
