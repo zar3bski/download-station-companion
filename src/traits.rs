@@ -1,4 +1,9 @@
-use reqwest::blocking::Request;
+use bytes::Bytes;
+
+use reqwest::{
+    blocking::{multipart::Form, Body},
+    Method, Url,
+};
 use serde_json::Value;
 
 use crate::task::Task;
@@ -17,7 +22,14 @@ pub trait DownloadingController {
     fn get_jobs_advancement(&self, tasks: &mut Vec<Task>);
 }
 
+#[allow(dead_code)]
+pub enum Payload {
+    BODY(Body),
+    FORM(Form), // dead code, to be implemented
+}
+
 pub trait HTTPService {
     fn new() -> Self;
-    fn send_request(&self, req: Request) -> Option<Value>;
+    fn send_request(&self, url: Url, method: Method, payload: Option<Payload>) -> Option<Value>;
+    fn download_file(&self, url: Url) -> Option<Bytes>;
 }

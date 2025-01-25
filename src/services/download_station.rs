@@ -3,12 +3,14 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::conf::CONF;
-use crate::task::{Task, TaskStatus};
-use crate::traits::{DownloadingController, HTTPService};
-use log::{debug, error};
+use crate::services::API_CONTENT_TYPE;
+use crate::task::{Source, Task, TaskStatus};
+use crate::traits::{DownloadingController, HTTPService, Payload};
+use bytes::Bytes;
+use log::{debug, error, warn};
 use once_cell::sync::Lazy;
-use reqwest::blocking::{Client, Request};
-use reqwest::header::{self, USER_AGENT};
+use reqwest::blocking::Client;
+use reqwest::header::{self, HeaderValue, ACCEPT, USER_AGENT};
 use reqwest::{Method, Url};
 use serde::Deserialize;
 use serde_json::Value;
@@ -68,6 +70,23 @@ pub static DS_TO_COMPANION_MAPPING: Lazy<Arc<HashMap<&'static str, TaskStatus>>>
         ]);
         Arc::new(hash)
     });
+
+pub static DS_ERROR_CODES: Lazy<Arc<HashMap<u8, &str>>> = Lazy::new(|| {
+    let mapping = HashMap::from([
+        (100 as u8, "Unknown error"),
+        (101 as u8, "Invalid parameter"),
+        (102 as u8, "The requested API does not exist"),
+        (103 as u8, "The requested method does not exist"),
+        (
+            104 as u8,
+            "The requested version does not support the functionality",
+        ),
+        (105 as u8, "The logged in session does not have permission"),
+        (106 as u8, "Session timeout"),
+        (107 as u8, "Session interrupted by duplicate login"),
+    ]);
+    Arc::new(mapping)
+});
 
 pub struct DsControler<T> {
     service: T,
@@ -155,24 +174,46 @@ impl HTTPService for DsService {
         }
     }
 
-    fn send_request(&self, req: Request) -> Option<Value> {
-        // FIXME This entire mess comes from the fact that reqwest does not
-        // allow relative urls. Remove this decoration when a solution
-        // is found
-        let method = req.method().clone();
-        let url = req.url().to_string();
-        let query = &url[url.find("?").unwrap()..url.len()];
-        let query = query.to_owned() + format!("&_sid={}", self.sid).as_str();
-        let url = self.root_url.join(&query).unwrap();
-        let req = Request::new(method, url);
+    fn download_file(&self, _: Url) -> Option<Bytes> {
+        panic!("Not implemented")
+    }
+
+    fn send_request(
+        &self,
+        mut url: Url,
+        method: Method,
+        payload: Option<Payload>,
+    ) -> Option<Value> {
+        // extract query from url and override req.url with the proper
+        // API root_url and the sid
+        url.query_pairs_mut().append_pair("_sid", &self.sid);
+
+        let mut final_url = self.root_url.clone();
+        final_url.set_query(url.query());
+
+        let url_log = url.clone();
+        let req = match payload {
+            Some(payload) => match payload {
+                Payload::BODY(body) => self.client.request(method, final_url).body(body),
+                Payload::FORM(form) => self
+                    .client
+                    .request(method, final_url)
+                    .multipart(form)
+                    .header(ACCEPT, HeaderValue::from_static(&API_CONTENT_TYPE)),
+            },
+            None => self.client.request(method, final_url),
+        };
+
         debug!("Request: {:?}", req);
-        let resp = self.client.execute(req);
+        let resp = req.send();
 
         match resp {
             Ok(resp) => {
-                if resp.status().as_u16() < 300 {
-                    return resp.json().unwrap();
+                let status = resp.status().as_u16();
+                if status < 300 {
+                    return Some(resp.json().unwrap());
                 } else {
+                    warn!("Status code {} received from {}", status, url_log);
                     return None;
                 }
             }
@@ -195,12 +236,11 @@ impl<T: HTTPService> DownloadingController for DsControler<T> {
     }
 
     fn get_jobs_advancement(&self, tasks: &mut Vec<Task>) {
-        let url = format!(
+        let url = Url::parse(format!(
             "{}?api=SYNO.DownloadStation.Task&version=1&session=DownloadStation&method=list&additional=detail&username={}",
             CONF.synology_root_api, CONF.synology_user
-        );
-        let req = Request::new(Method::GET, Url::parse(url.as_str()).unwrap());
-        let resp = self.service.send_request(req).unwrap();
+        ).as_str()).unwrap();
+        let resp = self.service.send_request(url, Method::GET, None).unwrap();
 
         if resp["success"] == true {
             let distant_tasks: &Vec<Value> = resp["data"]["tasks"].as_array().unwrap();
@@ -209,17 +249,23 @@ impl<T: HTTPService> DownloadingController for DsControler<T> {
                 let status = obj["status"].as_str().unwrap();
                 for task_idx in 0..tasks.len() {
                     let task = &mut tasks[task_idx];
-
-                    if task.magnet_link == uri
-                        && DS_TO_COMPANION_MAPPING[status] != task.get_status()
-                    {
-                        let s: TaskStatus = DS_TO_COMPANION_MAPPING[status];
-                        task.set_status(s);
-                        if s == TaskStatus::DONE || s == TaskStatus::FAILED {
-                            tasks.remove(task_idx);
+                    match &task.source {
+                        Source::MAGNET(magnet_link) => {
+                            if magnet_link == uri
+                                && DS_TO_COMPANION_MAPPING[status] != task.get_status()
+                            {
+                                let s: TaskStatus = DS_TO_COMPANION_MAPPING[status];
+                                task.set_status(s);
+                                if s == TaskStatus::DONE || s == TaskStatus::FAILED {
+                                    tasks.remove(task_idx); // TODO: call deleter from set_status instead?
+                                }
+                            } else {
+                                debug!("Nothing new for task: {}", magnet_link);
+                            }
                         }
-                    } else {
-                        debug!("Nothing new for task: {}", task.magnet_link);
+                        Source::FILE(_) => {
+                            panic!("Not implemented")
+                        }
                     }
                 }
             }
@@ -229,33 +275,63 @@ impl<T: HTTPService> DownloadingController for DsControler<T> {
     }
 
     fn submit_task(&self, task: &mut Task) {
-        let mut url = format!(
-            "{}?api=SYNO.DownloadStation.Task&version=1&session=DownloadStation&method=create&uri={}",
-            CONF.synology_root_api,
-            urlencoding::encode(task.magnet_link.as_str())
-        );
-
+        let mut url = Url::parse(
+            format!(
+                "{}?api=SYNO.DownloadStation.Task&version=1&session=DownloadStation&method=create",
+                CONF.synology_root_api
+            )
+            .as_str(),
+        )
+        .unwrap();
         if task.destination_folder.is_some() {
-            url.push_str(
-                format!(
-                    "&destination={}",
-                    urlencoding::encode(task.destination_folder.clone().unwrap().as_str())
-                        .into_owned()
-                )
-                .as_str(),
+            url.query_pairs_mut().append_pair(
+                "destination",
+                task.destination_folder.clone().unwrap().as_str(),
             );
         }
 
-        let req = Request::new(Method::GET, Url::parse(url.as_str()).unwrap());
-        let resp = self.service.send_request(req);
+        let resp = match &task.source {
+            Source::MAGNET(magnet_link) => {
+                url.query_pairs_mut().append_pair("uri", &magnet_link);
 
+                let resp = self.service.send_request(url, Method::GET, None);
+                resp
+            }
+            Source::FILE(_) => {
+                // TODO: implement when missing documentation is fixed
+                //let part = Part::bytes(file.to_vec())
+                //    .file_name("bio.torrent") // TODO: make variable
+                //    .mime_str("application/x-bittorrent")
+                //    .unwrap();
+                //let form = reqwest::blocking::multipart::Form::new().part("file", part);
+                //let resp = self
+                //    .service
+                //    .send_request(url, Method::POST, Some(Payload::FORM(form)));
+                //resp
+                panic!("Not implemented")
+            }
+        };
         match resp {
-            Some(res) => {
-                debug!("Task submitted successfully: {}", res);
-                task.set_status(TaskStatus::SUBMITTED);
+            Some(resp) => {
+                let data = resp.as_object().unwrap();
+                if data.contains_key("error") {
+                    error!(
+                        "Could not submit download task: {}. Error code {}: {}",
+                        task.message_id,
+                        data["error"]["code"],
+                        DS_ERROR_CODES[&(data["error"]["code"].as_u64().unwrap() as u8)]
+                    );
+                    task.set_status(TaskStatus::FAILED);
+                } else {
+                    debug!("Task submitted successfully: {:?}", data);
+                    task.set_status(TaskStatus::SUBMITTED);
+                }
             }
             None => {
-                error!("Could not submit download task: {}", task.message_id);
+                error!(
+                    "Could not submit download task: {}. No response from API",
+                    task.message_id
+                );
             }
         }
     }
@@ -264,9 +340,10 @@ impl<T: HTTPService> DownloadingController for DsControler<T> {
 #[cfg(test)]
 pub mod tests {
 
-    use std::{cell::RefCell, str::FromStr};
+    use std::{cell::RefCell, str::FromStr, sync::Mutex};
 
-    use reqwest::{blocking::Request, Method, Url};
+    use bytes::Bytes;
+    use reqwest::{blocking::Body, Method, Url};
     use serde_json::{json, Value};
 
     use crate::{
@@ -274,8 +351,8 @@ pub mod tests {
             discord::DiscordController,
             download_station::{DsControler, DS_TO_COMPANION_MAPPING},
         },
-        task::{Task, TaskStatus},
-        traits::{DownloadingController, HTTPService, MessagingController},
+        task::{Source, Task, TaskStatus},
+        traits::{DownloadingController, HTTPService, MessagingController, Payload},
     };
 
     struct DiscordServiceMock {}
@@ -283,8 +360,38 @@ pub mod tests {
         fn new() -> Self {
             Self {}
         }
-        fn send_request(&self, _: Request) -> Option<Value> {
+        fn send_request(&self, _: Url, _: Method, _: Option<Payload>) -> Option<Value> {
             return Some(json!({}));
+        }
+        fn download_file(&self, _: Url) -> Option<Bytes> {
+            panic!("Not implemented")
+        }
+    }
+
+    struct DsServiceMock {
+        payload: RefCell<Option<Payload>>,
+        url: RefCell<Url>,
+    }
+
+    impl HTTPService for DsServiceMock {
+        fn new() -> Self {
+            let payload: RefCell<Option<Payload>> =
+                RefCell::new(Some(Payload::BODY(Body::from(vec![])))); // inject here
+            let url = RefCell::new(Url::parse("http://somewhere").unwrap());
+            Self { payload, url }
+        }
+        fn send_request(&self, url: Url, _: Method, payload: Option<Payload>) -> Option<Value> {
+            // copy request in reqs
+            self.payload.replace_with(|old| payload);
+            self.url.replace_with(|old| url);
+            let data = json!({
+                "nothing":
+                "to say"
+            });
+            return Some(data);
+        }
+        fn download_file(&self, _: Url) -> Option<Bytes> {
+            panic!("Not implemented")
         }
     }
 
@@ -297,35 +404,33 @@ pub mod tests {
         assert!(DS_TO_COMPANION_MAPPING[t.as_str()] == TaskStatus::SUBMITTED);
     }
 
+    //
+    //#[test]
+    //fn file_handling() {
+    //    let controler = DsControler::<DsServiceMock>::new();
+    //    let messaging_controler = DiscordController::<DiscordServiceMock>::new();
+    //    let file = Bytes::from("SOME_FILE");
+    //    let mut task = Task::new(
+    //        Source::FILE(file),
+    //        String::from_str("1").unwrap(),
+    //        &messaging_controler,
+    //        Some(String::from_str("videos/Movies").unwrap()),
+    //        String::from_str("1").unwrap(),
+    //    );
+    //    controler.submit_task(&mut task);
+    //    let receive_req = controler.service.payload.into_inner().unwrap();
+    //    // HERE: test
+    //}
+
     #[test]
     fn destination_folder_set_in_url() {
-        struct DsServiceMock {
-            request: RefCell<Request>,
-        }
-
-        impl HTTPService for DsServiceMock {
-            fn new() -> Self {
-                let request: RefCell<Request> = RefCell::new(Request::new(
-                    Method::GET,
-                    Url::parse("http://nowhere").unwrap(),
-                )); // inject here
-                Self { request }
-            }
-            fn send_request(&self, req: Request) -> Option<Value> {
-                // copy request in reqs
-                self.request.replace_with(|old| req);
-                let data = json!({
-                    "nothing":
-                    "to say"
-                });
-                return Some(data);
-            }
-        }
-
         let controler = DsControler::<DsServiceMock>::new();
         let messaging_controler = DiscordController::<DiscordServiceMock>::new();
         let mut task = Task::new(
-            String::from_str("magnet:aaaaa").unwrap(),
+            Source::MAGNET(
+                String::from_str("magnet:?xt=urn:btih:A3057BB12D25F9F391806D819A9420FA29A86712&")
+                    .unwrap(),
+            ),
             String::from_str("1").unwrap(),
             &messaging_controler,
             Some(String::from_str("videos/Movies").unwrap()),
@@ -333,12 +438,75 @@ pub mod tests {
         );
 
         controler.submit_task(&mut task);
-        assert!(controler
-            .service
-            .request
-            .into_inner()
-            .url()
-            .as_str()
-            .contains("&destination=videos%2FMovies"))
+        let url_str = controler.service.url.into_inner();
+        assert!(url_str.as_str().contains("&destination=videos%2FMovies"));
+        assert!(url_str.as_str().contains(
+            "&uri=magnet%3A%3Fxt%3Durn%3Abtih%3AA3057BB12D25F9F391806D819A9420FA29A86712%2"
+        ))
     }
+
+    #[test]
+    fn advancement_updating() {
+        struct DsServiceMock {
+            time_called: Mutex<i8>,
+        }
+
+        impl HTTPService for DsServiceMock {
+            fn new() -> Self {
+                let time_called: Mutex<i8> = Mutex::new(0);
+                Self { time_called }
+            }
+            fn send_request(
+                &self,
+                url: Url,
+                method: Method,
+                payload: Option<Payload>,
+            ) -> Option<Value> {
+                // copy request in reqs
+                let mut value = self.time_called.lock().unwrap();
+                *value += 1;
+                match *value {
+                    1 => return Some(json!({"success": false})),
+                    2 => {
+                        return Some(
+                            json!({"success": true, "data":{"tasks":[{"status":"downloading", "additional":{"detail":{"uri":"magnet:?xt9420FA29A"}}}]}}),
+                        )
+                    }
+                    3 => {
+                        return Some(
+                            json!({"success": true, "data":{"tasks":[{"status":"downloading", "additional":{"detail":{"uri":"magnet:?xt9420FA29A"}}}]}}),
+                        )
+                    }
+                    4 => {
+                        return Some(
+                            json!({"success": true, "data":{"tasks":[{"status":"finished", "additional":{"detail":{"uri":"magnet:?xt9420FA29A"}}}]}}),
+                        )
+                    }
+                    _ => None,
+                }
+            }
+            fn download_file(&self, _: Url) -> Option<Bytes> {
+                panic!("Not implemented")
+            }
+        }
+        let controler = DsControler::<DsServiceMock>::new();
+        let messaging_controler = DiscordController::<DiscordServiceMock>::new();
+        let task = Task::new(
+            Source::MAGNET(String::from_str("magnet:?xt9420FA29A").unwrap()),
+            String::from_str("1").unwrap(),
+            &messaging_controler,
+            Some(String::from_str("videos/Movies").unwrap()),
+            String::from_str("1").unwrap(),
+        );
+        let mut tasks = vec![task];
+        matches!(tasks[0].get_status(), TaskStatus::RECEIVED);
+        controler.get_jobs_advancement(&mut tasks);
+        matches!(tasks[0].get_status(), TaskStatus::RECEIVED);
+        controler.get_jobs_advancement(&mut tasks);
+        matches!(tasks[0].get_status(), TaskStatus::DOWNLOADING);
+        controler.get_jobs_advancement(&mut tasks);
+        matches!(tasks[0].get_status(), TaskStatus::DONE);
+    }
+
+    // TODO: ERROR TESTING
 }
