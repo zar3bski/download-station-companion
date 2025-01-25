@@ -12,21 +12,12 @@ use reqwest::blocking::{Body, Client};
 use reqwest::header::{self, HeaderValue, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 
 use reqwest::{Method, Url};
-use serde::Deserialize;
 use serde_json::{self, json, Value};
 
+use super::schemas::AttachementObject;
 use super::API_USER_AGENT;
 
 const BASE_URL: &str = "https://discord.com/api/v10";
-
-#[allow(dead_code)]
-#[derive(Deserialize)]
-struct AttachementObject {
-    id: String,
-    filename: String,
-    url: String,
-    proxy_url: String,
-}
 
 #[derive(Default)]
 pub struct DiscordController<T> {
