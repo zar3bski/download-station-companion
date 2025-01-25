@@ -1,10 +1,10 @@
 use std::str::FromStr;
 
 use crate::conf::CONF;
+use crate::core::task::{Source, Task, TaskStatus};
+use crate::core::traits::{DownloadingController, HTTPService, Payload};
 use crate::services::schemas::{InfoResponse, DS_ERROR_CODES};
 use crate::services::API_CONTENT_TYPE;
-use crate::task::{Source, Task, TaskStatus};
-use crate::traits::{DownloadingController, HTTPService, Payload};
 use bytes::Bytes;
 use log::{debug, error, warn};
 
@@ -277,12 +277,12 @@ pub mod tests {
     use serde_json::{json, Value};
 
     use crate::{
+        core::task::{Source, Task, TaskStatus},
+        core::traits::{DownloadingController, HTTPService, MessagingController, Payload},
         services::{
             discord::DiscordController,
             download_station::{DsControler, DS_TO_COMPANION_MAPPING},
         },
-        task::{Source, Task, TaskStatus},
-        traits::{DownloadingController, HTTPService, MessagingController, Payload},
     };
 
     struct DiscordServiceMock {}

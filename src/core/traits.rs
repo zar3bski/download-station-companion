@@ -6,7 +6,7 @@ use reqwest::{
 };
 use serde_json::Value;
 
-use crate::task::Task;
+use super::task::Task;
 
 pub trait MessagingController {
     fn new() -> Self
