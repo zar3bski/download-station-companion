@@ -1,4 +1,5 @@
 use crate::traits::MessagingController;
+use bytes::Bytes;
 use core::fmt;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -16,10 +17,16 @@ impl fmt::Display for TaskStatus {
     }
 }
 
+#[derive(PartialEq)]
+pub enum Source {
+    FILE(Bytes),
+    MAGNET(String),
+}
+
 pub struct Task<'a> {
     status: TaskStatus,
     pub message_id: String,
-    pub magnet_link: String,
+    pub source: Source,
     pub notifier: &'a dyn MessagingController,
     pub destination_folder: Option<String>,
     pub user_id: String,
@@ -27,14 +34,14 @@ pub struct Task<'a> {
 
 impl<'a> Task<'a> {
     pub fn new(
-        magnet_link: String,
+        source: Source,
         message_id: String,
         notifier: &'a dyn MessagingController,
         destination_folder: Option<String>,
         user_id: String,
     ) -> Self {
         Self {
-            magnet_link,
+            source,
             message_id,
             status: TaskStatus::RECEIVED,
             notifier,
